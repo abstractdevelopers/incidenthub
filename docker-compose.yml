@@ -1,17 +1,23 @@
 version: '3.8'
 services:
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/incidenthub?sslmode=disable
       - JWT_SECRET=default-secret-change-in-production
+      - FRONTEND_URL=http://localhost:3000
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: always
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
     ports:
@@ -20,12 +26,19 @@ services:
       - backend
     restart: always
   db:
-    image: postgres
+    image: postgres:15-alpine
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=incidenthub
+    ports:
+      - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 volumes:
   db-data:

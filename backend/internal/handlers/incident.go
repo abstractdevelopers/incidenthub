@@ -140,8 +140,35 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if strings.TrimSpace(input.Title) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
+		return
+	}
+	if strings.TrimSpace(input.Description) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "description is required"})
+		return
+	}
+
+	validSeverities := map[models.Severity]bool{
+		models.SeverityLow: true, models.SeverityMedium: true,
+		models.SeverityHigh: true, models.SeverityCritical: true,
+	}
+	if !validSeverities[input.Severity] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid severity"})
+		return
+	}
+
 	if input.Status == "" {
 		input.Status = models.StatusOpen
+	}
+
+	validStatuses := map[models.Status]bool{
+		models.StatusOpen: true, models.StatusInvestigating: true,
+		models.StatusMitigated: true, models.StatusResolved: true,
+	}
+	if !validStatuses[input.Status] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return
 	}
 
 	var resolvedAt *time.Time

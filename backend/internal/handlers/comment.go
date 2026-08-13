@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"strings"
 
 	"incidenthub/backend/internal/models"
 
@@ -57,6 +58,11 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	var input models.CreateCommentInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if strings.TrimSpace(input.Body) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "comment body is required"})
 		return
 	}
 
