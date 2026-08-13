@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { incidentsApi } from '../lib/api';
-import type { Severity, Status } from '../lib/types';
+import { incidentsApi } from '@/lib/api';
+import type { Severity, Status } from '@/lib/types';
 
 export default function NewIncidentPage() {
   const router = useRouter();

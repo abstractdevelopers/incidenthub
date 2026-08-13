@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardPage from '../../components/Dashboard';
+import DashboardPage from '@/components/Dashboard';
 
 export default function Dashboard() {
   const router = useRouter();

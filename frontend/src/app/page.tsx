@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { authApi } from '../lib/api';
+import { authApi } from '@/lib/api';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);

@@ -41,7 +41,7 @@ type CreateIncidentInput struct {
 	Title       string   `json:"title" binding:"required"`
 	Description string   `json:"description" binding:"required"`
 	Severity    Severity `json:"severity" binding:"required,oneof=LOW MEDIUM HIGH CRITICAL"`
-	Status      Status   `json:"status" binding:"oneof=OPEN INVESTIGATING MITIGATED RESOLVED"`
+	Status      Status   `json:"status"`
 	AssigneeID  *string  `json:"assignee_id,omitempty"`
 }
 

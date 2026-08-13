@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { incidentsApi } from '../lib/api';
-import type { Incident, Status, Severity } from '../lib/types';
-import { StatusBadge, SeverityBadge } from '../components/Badges';
+import { incidentsApi } from '@/lib/api';
+import type { Incident, Status, Severity } from '@/lib/types';
+import { StatusBadge, SeverityBadge } from '@/components/Badges';
 
-export default function IncidentsPage() {
+function IncidentsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -205,3 +205,22 @@ export default function IncidentsPage() {
     </div>
   );
 }
+
+export default function IncidentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/4" />
+          <div className="h-12 bg-gray-200 rounded" />
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded" />
+          ))}
+        </div>
+      </div>
+    }>
+      <IncidentsPageInner />
+    </Suspense>
+  );
+}
+

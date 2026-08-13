@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import IncidentDetailPage from '../../components/IncidentDetail';
+import IncidentDetailPage from '@/components/IncidentDetail';
 
 export default function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();

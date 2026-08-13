@@ -617,10 +617,10 @@ func TestListComments(t *testing.T) {
 func TestDashboardStats(t *testing.T) {
 	db := setupTestDB(t, testDSN())
 	userID := createTestUser(t, db)
-	createTestIncident(t, db, userID)
-	createTestIncident(t, db, userID)
-	db.MustExec(`UPDATE incidents SET status = 'INVESTIGATING'`)
-	db.MustExec(`UPDATE incidents SET severity = 'CRITICAL'`)
+	id1 := createTestIncident(t, db, userID)
+	id2 := createTestIncident(t, db, userID)
+	db.MustExec(`UPDATE incidents SET status = 'INVESTIGATING', severity = 'CRITICAL' WHERE id = $1`, id1)
+	db.MustExec(`UPDATE incidents SET status = 'RESOLVED', severity = 'LOW' WHERE id = $1`, id2)
 	r := newTestRouter(db, "test-secret")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard/stats", nil)

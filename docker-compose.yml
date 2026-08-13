@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     build:
@@ -16,8 +15,8 @@ services:
     restart: always
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
     ports:
