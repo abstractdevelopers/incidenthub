@@ -50,9 +50,9 @@ func (h *IncidentHandler) List(c *gin.Context) {
 		argIdx++
 	}
 	if params.Search != nil && *params.Search != "" {
-		searchTerm := "%" + strings.ToLower(*params.Search) + "%"
+		searchTerm := escapeLike(*params.Search)
 		whereClauses = append(whereClauses, "(LOWER(i.title) LIKE $"+strconv.Itoa(argIdx)+" OR LOWER(i.description) LIKE $"+strconv.Itoa(argIdx+1)+")")
-		args = append(args, searchTerm, searchTerm)
+		args = append(args, "%"+searchTerm+"%", "%"+searchTerm+"%")
 		argIdx += 2
 	}
 	if params.Assignee != nil && *params.Assignee != "" {
@@ -144,8 +144,16 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
 		return
 	}
+	if len(input.Title) > 500 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title must be 500 characters or less"})
+		return
+	}
 	if strings.TrimSpace(input.Description) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "description is required"})
+		return
+	}
+	if len(input.Description) > 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "description must be 10000 characters or less"})
 		return
 	}
 
@@ -188,16 +196,80 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 	}
 
 	var incident models.Incident
-	h.db.Get(&incident, "SELECT id, title, description, severity, status, assignee_id, created_by, created_at, updated_at, resolved_at FROM incidents WHERE id = $1", id)
+	if err := h.db.Get(&incident, "SELECT id, title, description, severity, status, assignee_id, created_by, created_at, updated_at, resolved_at FROM incidents WHERE id = $1", id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve created incident"})
+		return
+	}
 	c.JSON(http.StatusCreated, incident)
 }
 
 func (h *IncidentHandler) Update(c *gin.Context) {
 	id := c.Param("id")
+	userID := c.GetString("user_id")
 
 	var input models.UpdateIncidentInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate severity if provided
+	if input.Severity != nil {
+		validSeverities := map[models.Severity]bool{
+			models.SeverityLow: true, models.SeverityMedium: true,
+			models.SeverityHigh: true, models.SeverityCritical: true,
+		}
+		if !validSeverities[*input.Severity] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid severity"})
+			return
+		}
+	}
+
+	// Validate status if provided
+	if input.Status != nil {
+		validStatuses := map[models.Status]bool{
+			models.StatusOpen: true, models.StatusInvestigating: true,
+			models.StatusMitigated: true, models.StatusResolved: true,
+		}
+		if !validStatuses[*input.Status] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
+	}
+
+	// Validate title if provided
+	if input.Title != nil && strings.TrimSpace(*input.Title) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title cannot be empty"})
+		return
+	}
+	if input.Title != nil && len(*input.Title) > 500 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title must be 500 characters or less"})
+		return
+	}
+
+	// Validate description if provided
+	if input.Description != nil && strings.TrimSpace(*input.Description) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "description cannot be empty"})
+		return
+	}
+	if input.Description != nil && len(*input.Description) > 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "description must be 10000 characters or less"})
+		return
+	}
+
+	// Authorization: only the incident creator can update; use FOR UPDATE to prevent race conditions
+	var existing models.Incident
+	if err := h.db.Get(&existing, "SELECT id, created_by, status FROM incidents WHERE id = $1 FOR UPDATE", id); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "incident not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get incident"})
+		return
+	}
+
+	if existing.CreatedBy != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the incident creator can update this incident"})
 		return
 	}
 
@@ -226,9 +298,8 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		argIdx++
 		if *input.Status == models.StatusResolved {
 			setClauses = append(setClauses, "resolved_at = NOW()")
-		} else if *input.Status != models.StatusResolved {
-			existingStatus := h.getIncidentStatus(id)
-			if existingStatus == models.StatusResolved || existingStatus == "" {
+		} else {
+			if existing.Status == models.StatusResolved {
 				setClauses = append(setClauses, "resolved_at = NULL")
 			}
 		}
@@ -254,26 +325,55 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		return
 	}
 
-	rows, _ := result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify update"})
+		return
+	}
 	if rows == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "incident not found"})
 		return
 	}
 
 	var incident models.Incident
-	h.db.Get(&incident, "SELECT id, title, description, severity, status, assignee_id, created_by, created_at, updated_at, resolved_at FROM incidents WHERE id = $1", id)
+	if err := h.db.Get(&incident, "SELECT id, title, description, severity, status, assignee_id, created_by, created_at, updated_at, resolved_at FROM incidents WHERE id = $1", id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get updated incident"})
+		return
+	}
 	c.JSON(http.StatusOK, incident)
 }
 
 func (h *IncidentHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+	userID := c.GetString("user_id")
+
+	// Authorization: only the incident creator can delete; use FOR UPDATE to prevent race conditions
+	var existing models.Incident
+	if err := h.db.Get(&existing, "SELECT id, created_by FROM incidents WHERE id = $1 FOR UPDATE", id); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "incident not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get incident"})
+		return
+	}
+
+	if existing.CreatedBy != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the incident creator can delete this incident"})
+		return
+	}
+
 	result, err := h.db.Exec("DELETE FROM incidents WHERE id = $1", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete incident"})
 		return
 	}
 
-	rows, _ := result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify deletion"})
+		return
+	}
 	if rows == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "incident not found"})
 		return
@@ -282,8 +382,11 @@ func (h *IncidentHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *IncidentHandler) getIncidentStatus(id string) models.Status {
-	var status models.Status
-	h.db.Get(&status, "SELECT status FROM incidents WHERE id = $1", id)
-	return status
+// escapeLike escapes SQL LIKE wildcard characters in user input to prevent
+// wildcard injection (%, _, \).
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return strings.ToLower(s)
 }

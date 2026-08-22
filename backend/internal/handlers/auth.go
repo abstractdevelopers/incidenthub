@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"database/sql"
 	"net/http"
 	"strings"
+	"unicode"
 
 	"incidenthub/backend/internal/auth"
 	"incidenthub/backend/internal/models"
@@ -21,6 +21,25 @@ func NewAuthHandler(db *sqlx.DB, secret string) *AuthHandler {
 	return &AuthHandler{db: db, secret: secret}
 }
 
+// validatePassword enforces: min 8 chars, at least one uppercase, one lowercase, one digit.
+func validatePassword(password string) bool {
+	if len(password) < 8 {
+		return false
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		}
+	}
+	return hasUpper && hasLower && hasDigit
+}
+
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input models.CreateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -28,13 +47,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Enforce password complexity: min 8 chars, uppercase, lowercase, digit
+	if !validatePassword(input.Password) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters and contain uppercase, lowercase, and a digit"})
+		return
+	}
+
+	email := strings.ToLower(input.Email)
+
+	// Check for existing user with row-level lock to prevent race conditions
 	var existing models.User
-	err := h.db.Get(&existing, "SELECT id FROM users WHERE email = $1", strings.ToLower(input.Email))
+	err := h.db.Get(&existing, "SELECT id FROM users WHERE email = $1 FOR UPDATE", email)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
 		return
 	}
-	if err != sql.ErrNoRows {
+	if err.Error() != "sql: no rows in result set" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -48,14 +76,23 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	id := generateUUID()
 	result, err := h.db.Exec(
 		"INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)",
-		id, strings.ToLower(input.Email), hashedPassword, input.Name,
+		id, email, hashedPassword, input.Name,
 	)
 	if err != nil {
+		// Check if this is a unique violation from a race condition
+		if strings.Contains(err.Error(), "duplicate key") {
+			c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify registration"})
+		return
+	}
 	if rowsAffected == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 		return
@@ -63,7 +100,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"id":    id,
-		"email": strings.ToLower(input.Email),
+		"email": email,
 		"name":  input.Name,
 	})
 }
@@ -100,4 +137,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Name:  user.Name,
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func (h *AuthHandler) Me(c *gin.Context) {
+	userID := c.GetString("user_id")
+	email := c.GetString("email")
+	name := c.GetString("name")
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":    userID,
+		"email": email,
+		"name":  name,
+	})
 }

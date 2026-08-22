@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { authApi } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function LoginPage() {
+  const { login, register } = useAuth();
+  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,22 +20,16 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (isLogin) {
-        const response = await authApi.login({ email, password });
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify({ id: response.id, email: response.email, name: response.name }));
-        window.location.href = '/dashboard';
+        await login(email, password);
       } else {
         if (!name.trim()) {
           setError('Name is required');
           setLoading(false);
           return;
         }
-        await authApi.register({ email, password, name });
-        const loginResponse = await authApi.login({ email, password });
-        localStorage.setItem('token', loginResponse.token);
-        localStorage.setItem('user', JSON.stringify({ id: loginResponse.id, email: loginResponse.email, name: loginResponse.name }));
-        window.location.href = '/dashboard';
+        await register(email, password, name);
       }
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -101,9 +98,9 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
-                placeholder="Min 6 characters"
+                placeholder="Min 8 chars, uppercase, lowercase, digit"
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
             <button

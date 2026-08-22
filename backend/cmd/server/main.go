@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"incidenthub/backend/internal/handlers"
 	"incidenthub/backend/internal/middleware"
@@ -23,7 +24,7 @@ func main() {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "default-secret-change-in-production"
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 
 	port := os.Getenv("PORT")
@@ -52,6 +53,9 @@ func main() {
 
 	r := gin.Default()
 
+	// Security headers middleware
+	r.Use(middleware.SecurityHeaders())
+
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{frontendURL},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -67,11 +71,16 @@ func main() {
 
 	api := r.Group("/api")
 	{
-		api.POST("/auth/register", authHandler.Register)
-		api.POST("/auth/login", authHandler.Login)
+		// Rate limit auth endpoints: 10 requests per minute
+		authAPI := api.Group("/auth", middleware.RateLimit(10, time.Minute))
+		{
+			authAPI.POST("/register", authHandler.Register)
+			authAPI.POST("/login", authHandler.Login)
+		}
 
 		auth := api.Group("", middleware.AuthRequired(jwtSecret))
 		{
+			auth.GET("/auth/me", authHandler.Me)
 			auth.GET("/dashboard/stats", dashboardHandler.GetStats)
 
 			auth.GET("/incidents", incidentHandler.List)
@@ -124,7 +133,9 @@ func runMigrations(db *sqlx.DB) {
 		CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents(severity);
 		CREATE INDEX IF NOT EXISTS idx_incidents_assignee ON incidents(assignee_id);
 		CREATE INDEX IF NOT EXISTS idx_incidents_created_at ON incidents(created_at DESC);
-		CREATE INDEX IF NOT EXISTS idx_incidents_created_by ON incidents(created_by);`,
+		CREATE INDEX IF NOT EXISTS idx_incidents_created_by ON incidents(created_by);
+		CREATE INDEX IF NOT EXISTS idx_incidents_title_lower ON incidents(LOWER(title));
+		CREATE INDEX IF NOT EXISTS idx_incidents_description_lower ON incidents(LOWER(description));`,
 		`CREATE TABLE IF NOT EXISTS comments (
 			id VARCHAR(36) PRIMARY KEY,
 			incident_id VARCHAR(36) NOT NULL,
@@ -136,7 +147,8 @@ func runMigrations(db *sqlx.DB) {
 			CONSTRAINT fk_comments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_comments_incident ON comments(incident_id);
-		CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id);`,
+		CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id);
+		CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at);`,
 		`CREATE OR REPLACE FUNCTION update_updated_at_column()
 		RETURNS TRIGGER AS $$
 		BEGIN

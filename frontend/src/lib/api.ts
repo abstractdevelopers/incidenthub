@@ -46,6 +46,8 @@ export const authApi = {
     request<User>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data: { email: string; password: string }) =>
     request<LoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  me: () =>
+    request<{ id: string; email: string; name: string }>('/api/auth/me'),
 };
 
 // Incidents
