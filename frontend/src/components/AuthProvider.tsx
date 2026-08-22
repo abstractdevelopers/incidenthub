@@ -33,6 +33,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem('user');
         }
       }
+      // Validate token with backend on load
+      authApi.me().then((me) => {
+        setUser({ id: me.id, email: me.email, name: me.name });
+      }).catch(() => {
+        // Token is stale/expired — clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+      });
     }
     setLoading(false);
   }, []);

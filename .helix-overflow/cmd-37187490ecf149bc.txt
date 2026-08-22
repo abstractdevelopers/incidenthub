@@ -1,0 +1,51 @@
+Command: export PATH="/workspace/repo/.helix-venv/bin:/workspace/repo/venv/bin:/workspace/repo/.venv/bin:/workspace/.helix-venv/bin:$PATH" && cd /workspace/repo && grep -rn "password" --include="*.go" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.yml" --include="*.yaml" --include="*.sql" --include="*.env*" | grep -v node_modules | grep -v ".git" | grep -v "go.sum" | grep -v "package-lock"
+Cwd: /workspace/repo
+
+=== STDOUT ===
+backend/cmd/server/main.go:103:			password_hash VARCHAR(255) NOT NULL,
+backend/internal/auth/jwt.go:12:	ErrInvalidCredentials = errors.New("invalid email or password")
+backend/internal/auth/jwt.go:24:func HashPassword(password string) (string, error) {
+backend/internal/auth/jwt.go:25:	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+backend/internal/auth/jwt.go:29:func CheckPasswordHash(password, hash string) bool {
+backend/internal/auth/jwt.go:30:	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+backend/internal/auth/jwt_test.go:10:	password := "securepassword123"
+backend/internal/auth/jwt_test.go:11:	hash, err := HashPassword(password)
+backend/internal/auth/jwt_test.go:14:	assert.True(t, CheckPasswordHash(password, hash))
+backend/internal/auth/jwt_test.go:15:	assert.False(t, CheckPasswordHash("wrongpassword", hash))
+backend/internal/models/user.go:10:	Password  string      `db:"password_hash" json:"-"`
+backend/internal/models/user.go:18:	Password string `json:"password" binding:"required,min=6"`
+backend/internal/models/user.go:24:	Password string `json:"password" binding:"required"`
+backend/internal/migrations/001_init.sql:5:    password_hash VARCHAR(255) NOT NULL,
+backend/internal/handlers/auth.go:50:		"INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)",
+backend/internal/handlers/auth.go:79:	err := h.db.Get(&user, "SELECT id, email, password_hash, name FROM users WHERE email = $1", strings.ToLower(input.Email))
+backend/internal/handlers/auth.go:81:		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+backend/internal/handlers/auth.go:86:		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+backend/internal/handlers/handlers_test.go:42:			password_hash VARCHAR(255) NOT NULL,
+backend/internal/handlers/handlers_test.go:89:	hash, _ := auth.HashPassword("password123")
+backend/internal/handlers/handlers_test.go:90:	_, err := db.Exec(`INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)`,
+backend/internal/handlers/handlers_test.go:98:	hash, _ := auth.HashPassword("password123")
+backend/internal/handlers/handlers_test.go:99:	_, err := db.Exec(`INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)`,
+backend/internal/handlers/handlers_test.go:152:	body := `{"email":"new@example.com","password":"password123","name":"New User"}`
+backend/internal/handlers/handlers_test.go:169:	body := `{"email":"test@example.com","password":"password123","name":"Another User"}`
+backend/internal/handlers/handlers_test.go:182:	body := `{"email":"invalid","password":"short"}`
+backend/internal/handlers/handlers_test.go:196:	body := `{"email":"test@example.com","password":"password123"}`
+backend/internal/handlers/handlers_test.go:214:	body := `{"email":"test@example.com","password":"wrongpassword"}`
+backend/internal/handlers/handlers_test.go:227:	body := `{"email":"nonexistent@example.com","password":"password123"}`
+frontend/src/components/AuthProvider.tsx:11:  login: (email: string, password: string) => Promise<void>;
+frontend/src/components/AuthProvider.tsx:12:  register: (email: string, password: string, name: string) => Promise<void>;
+frontend/src/components/AuthProvider.tsx:40:  const login = async (email: string, password: string) => {
+frontend/src/components/AuthProvider.tsx:41:    const response: LoginResponse = await authApi.login({ email, password });
+frontend/src/components/AuthProvider.tsx:48:  const register = async (email: string, password: string, name: string) => {
+frontend/src/components/AuthProvider.tsx:49:    await authApi.register({ email, password, name });
+frontend/src/components/AuthProvider.tsx:50:    const response: LoginResponse = await authApi.login({ email, password });
+frontend/src/app/page.tsx:9:  const [password, setPassword] = useState('');
+frontend/src/app/page.tsx:20:        const response = await authApi.login({ email, password });
+frontend/src/app/page.tsx:30:        await authApi.register({ email, password, name });
+frontend/src/app/page.tsx:31:        const loginResponse = await authApi.login({ email, password });
+frontend/src/app/page.tsx:100:                type="password"
+frontend/src/app/page.tsx:101:                value={password}
+frontend/src/lib/api.ts:45:  register: (data: { email: string; password: string; name: string }) =>
+frontend/src/lib/api.ts:47:  login: (data: { email: string; password: string }) =>
+
+
+=== STDERR ===
