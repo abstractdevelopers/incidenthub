@@ -86,7 +86,7 @@ func setupTestDB(t *testing.T, dsn string) *sqlx.DB {
 
 func createTestUser(t *testing.T, db *sqlx.DB) string {
 	id := generateUUID()
-	hash, _ := auth.HashPassword("password123")
+	hash, _ := auth.HashPassword("Password123")
 	_, err := db.Exec(`INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)`,
 		id, "test@example.com", hash, "Test User")
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func createTestUser(t *testing.T, db *sqlx.DB) string {
 
 func createTestUser2(t *testing.T, db *sqlx.DB) string {
 	id := generateUUID()
-	hash, _ := auth.HashPassword("password123")
+	hash, _ := auth.HashPassword("Password123")
 	_, err := db.Exec(`INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)`,
 		id, "user2@example.com", hash, "User Two")
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestRegisterSuccess(t *testing.T) {
 	db := setupTestDB(t, testDSN())
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"new@example.com","password":"password123","name":"New User"}`
+	body := `{"email":"new@example.com","password":"Password123","name":"New User"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -166,7 +166,7 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 	createTestUser(t, db)
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"test@example.com","password":"password123","name":"Another User"}`
+	body := `{"email":"test@example.com","password":"Password123","name":"Another User"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -179,7 +179,7 @@ func TestRegisterValidation(t *testing.T) {
 	db := setupTestDB(t, testDSN())
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"invalid","password":"short"}`
+	body := `{"email":"invalid","password":"Short1a"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -193,7 +193,7 @@ func TestLoginSuccess(t *testing.T) {
 	createTestUser(t, db)
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"test@example.com","password":"password123"}`
+	body := `{"email":"test@example.com","password":"Password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -211,7 +211,7 @@ func TestLoginWrongPassword(t *testing.T) {
 	createTestUser(t, db)
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"test@example.com","password":"wrongpassword"}`
+	body := `{"email":"test@example.com","password":"WrongPass1"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -224,7 +224,7 @@ func TestLoginNonExistentUser(t *testing.T) {
 	db := setupTestDB(t, testDSN())
 	r := newTestRouter(db, "test-secret")
 
-	body := `{"email":"nonexistent@example.com","password":"password123"}`
+	body := `{"email":"nonexistent@example.com","password":"Password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

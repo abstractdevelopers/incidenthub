@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"regexp"
 	"strings"
+	"unicode"
 
 	"incidenthub/backend/internal/auth"
 	"incidenthub/backend/internal/models"
@@ -21,8 +21,24 @@ func NewAuthHandler(db *sqlx.DB, secret string) *AuthHandler {
 	return &AuthHandler{db: db, secret: secret}
 }
 
-// passwordRegex enforces: min 8 chars, at least one uppercase, one lowercase, one digit.
-var passwordRegex = regexp.MustCompile(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8}$`)
+// validatePassword enforces: min 8 chars, at least one uppercase, one lowercase, one digit.
+func validatePassword(password string) bool {
+	if len(password) < 8 {
+		return false
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		}
+	}
+	return hasUpper && hasLower && hasDigit
+}
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input models.CreateUserInput
@@ -32,7 +48,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	// Enforce password complexity: min 8 chars, uppercase, lowercase, digit
-	if !passwordRegex.MatchString(input.Password) {
+	if !validatePassword(input.Password) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters and contain uppercase, lowercase, and a digit"})
 		return
 	}
